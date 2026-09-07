@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, BookOpen, GraduationCap, Sparkles } from 'lucide-react';
 import { CAPS_SOWETO_PILOT, type CapsSubject } from '@/lib/curriculum/caps';
+import { buildCapsRequirement, type CapsLearningGoal } from '@/lib/curriculum/caps-generation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -15,19 +16,19 @@ const SUBJECTS: Array<{ id: CapsSubject; label: string; description: string }> =
   { id: 'physical-sciences', label: 'Physical Sciences', description: 'Mechanics, waves, electricity, matter and reactions.' },
 ];
 
-const GOALS = [
-  'Understand the concept from the beginning',
-  'Prepare for a test or exam',
-  'Work through practice questions',
-  'Explore it with an interactive simulation',
-] as const;
+const GOALS: Array<{ id: CapsLearningGoal; label: string }> = [
+  { id: 'learn', label: 'Understand the concept from the beginning' },
+  { id: 'assess', label: 'Prepare for a test or exam' },
+  { id: 'practice', label: 'Work through practice questions' },
+  { id: 'simulate', label: 'Explore it with an interactive simulation' },
+];
 
 export default function CapsOnboardingPage() {
   const router = useRouter();
   const [grade, setGrade] = useState<Grade>(9);
   const [subject, setSubject] = useState<CapsSubject>('mathematics');
   const [topicId, setTopicId] = useState('');
-  const [goal, setGoal] = useState<string>(GOALS[0]);
+  const [goal, setGoal] = useState<CapsLearningGoal>('learn');
 
   const topics = useMemo(
     () => CAPS_SOWETO_PILOT.filter((topic) => topic.subjects.includes(subject) && topic.grades.includes(grade)),
@@ -42,19 +43,15 @@ export default function CapsOnboardingPage() {
 
   const startClass = () => {
     if (!selectedTopic) return;
-    const subjectLabel = subject === 'mathematics' ? 'Mathematics' : 'Physical Sciences';
-    const requirement = [
-      `Grade ${grade} ${subjectLabel}`,
-      `Topic: ${selectedTopic.label}`,
-      `Learning goal: ${goal}`,
-      'Curriculum context: CAPS-aligned Soweto pilot.',
-      'Teach step-by-step, check understanding frequently, use a concrete South African example where helpful, and finish with a short formative activity.',
-    ].join('\n');
+
+    const context = { grade, subject, topicId: selectedTopic.id, goal, version: 1 as const };
+    const requirement = buildCapsRequirement(context);
 
     try {
       localStorage.setItem('requirementDraft', requirement);
       localStorage.setItem('interactiveModeEnabled', 'true');
-      localStorage.setItem('nahaCapsLearnerContext', JSON.stringify({ grade, subject, topicId: selectedTopic.id, goal, version: 1 }));
+      localStorage.setItem('nahaCapsLearnerContext', JSON.stringify(context));
+      localStorage.setItem('nahaCapsPilotEvent', JSON.stringify({ type: 'caps_class_started', at: Date.now(), context }));
     } catch {
       // The classroom can still be opened if browser storage is unavailable.
     }
@@ -73,6 +70,10 @@ export default function CapsOnboardingPage() {
             </div>
           </div>
           <p className="mb-8 max-w-2xl text-muted-foreground">Choose your grade, subject and goal. We&apos;ll open an interactive classroom with a teacher, classmates, activities and a whiteboard — starting from the CAPS pilot curriculum.</p>
+
+          <div className="mb-8 rounded-2xl border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+            <strong className="text-foreground">CAPS pilot:</strong> this starter topic catalog is a reviewable pilot layer. It is not yet an authoritative replacement for official CAPS curriculum documents.
+          </div>
 
           <div className="grid gap-8 lg:grid-cols-[1.15fr_.85fr]">
             <div className="space-y-7">
@@ -96,7 +97,7 @@ export default function CapsOnboardingPage() {
               </div>
               <div>
                 <label className="mb-3 block text-sm font-medium">4. What do you want to do?</label>
-                <div className="grid gap-2">{GOALS.map((item) => <button key={item} type="button" onClick={() => setGoal(item)} className={cn('rounded-xl border px-4 py-3 text-left text-sm transition', goal === item ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted')}>{item}</button>)}</div>
+                <div className="grid gap-2">{GOALS.map((item) => <button key={item.id} type="button" onClick={() => setGoal(item.id)} className={cn('rounded-xl border px-4 py-3 text-left text-sm transition', goal === item.id ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted')}>{item.label}</button>)}</div>
               </div>
             </div>
 
