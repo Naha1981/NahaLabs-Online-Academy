@@ -31,7 +31,8 @@ export function readCapsProgress(): CapsStoredProgress {
     const raw = window.localStorage.getItem(CAPS_PROGRESS_STORAGE_KEY);
     if (!raw) return empty;
     const parsed = JSON.parse(raw) as CapsStoredProgress;
-    return parsed?.version === 1 && parsed.topics ? parsed : empty;
+    if (parsed?.version !== 1 || !parsed.topics || typeof parsed.topics !== 'object') return empty;
+    return parsed;
   } catch {
     return empty;
   }
@@ -41,10 +42,16 @@ export function recordCapsLocalEvent(
   type: CapsProgressEventType,
   context: CapsLearningContext,
   at = Date.now(),
+  quizScorePercent?: number,
 ): CapsStoredProgress {
   const current = readCapsProgress();
   const existing = current.topics[context.topicId] ?? createEmptyCapsTopicProgress(context.topicId);
-  const next = recordCapsProgressEvent(existing, { type, at, context });
+  const next = recordCapsProgressEvent(existing, {
+    type,
+    at,
+    context,
+    quizScorePercent,
+  });
   const updated: CapsStoredProgress = {
     version: 1,
     topics: { ...current.topics, [context.topicId]: next },
