@@ -14,6 +14,14 @@ export interface CapsProgressEvent {
 }
 
 export type CapsPerformanceBand = 'not-assessed' | 'needs-review' | 'developing' | 'strong';
+export type CapsReviewAction = 'assess' | 'review' | 'practice' | 'challenge';
+
+export interface CapsReviewRecommendation {
+  band: CapsPerformanceBand;
+  action: CapsReviewAction;
+  label: string;
+  description: string;
+}
 
 export interface CapsTopicProgress {
   topicId: string;
@@ -31,6 +39,40 @@ export function getCapsPerformanceBand(progress: CapsTopicProgress): CapsPerform
   if (score < 50) return 'needs-review';
   if (score < 75) return 'developing';
   return 'strong';
+}
+
+export function getCapsReviewRecommendation(progress: CapsTopicProgress): CapsReviewRecommendation {
+  const band = getCapsPerformanceBand(progress);
+  switch (band) {
+    case 'needs-review':
+      return {
+        band,
+        action: 'review',
+        label: 'Review this topic',
+        description: 'Revisit the explanation and worked examples before trying another quiz.',
+      };
+    case 'developing':
+      return {
+        band,
+        action: 'practice',
+        label: 'Practice again',
+        description: 'You are building confidence. Work through more questions, then reassess.',
+      };
+    case 'strong':
+      return {
+        band,
+        action: 'challenge',
+        label: 'Try a challenge',
+        description: 'Your recent accuracy is strong. Extend the topic with a harder activity.',
+      };
+    default:
+      return {
+        band,
+        action: 'assess',
+        label: 'Take your first quiz',
+        description: 'Complete a short formative check so the academy can suggest your next step.',
+      };
+  }
 }
 
 export function recordCapsProgressEvent(
