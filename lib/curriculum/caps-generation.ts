@@ -36,7 +36,9 @@ const INTERACTIVE_COMPLETION_CONTRACT = [
   'When generating an interactive learning activity, include a clear learner-completable action (for example: manipulate a control, complete a short task, or reach a target state).',
   "When that action is genuinely completed, emit window.parent.postMessage({ __maicInteractive: true, kind: 'activity-completed' }, '*').",
   'Do not emit the completion message on page load, iframe mount, or merely because a control is visible.',
-  'Emit the completion message at most once for the activity unless the learner explicitly resets and completes the activity again.',
+  'Emit the completion message at most once for the current activity attempt.',
+  "If the learner explicitly resets the activity for another attempt, emit window.parent.postMessage({ __maicInteractive: true, kind: 'activity-reset' }, '*') before allowing a later genuine completion to count.",
+  'Never emit activity-reset automatically on page load, iframe mount, visibility changes, or scene navigation.',
 ];
 
 export function buildCapsGenerationBrief(
