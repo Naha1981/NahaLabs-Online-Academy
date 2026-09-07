@@ -197,6 +197,10 @@ function PooledIframe({ sceneId, entry, visible }: PooledIframeProps) {
         return;
       }
       if (d.kind === 'activity-completed') {
+        // Only the active, owned iframe can produce learner-completion credit.
+        // Pooled/hidden scenes remain mounted for fast navigation but must not
+        // advance CAPS progress from background script messages.
+        if (!visible || entry.owner === null || sceneId !== useInteractiveIframePool.getState().activeSceneId) return;
         if (completionDocumentRef.current === documentKey) return;
         const capsContext = readCapsContext();
         if (!capsContext) return;
@@ -209,7 +213,7 @@ function PooledIframe({ sceneId, entry, visible }: PooledIframeProps) {
     window.addEventListener('message', onMessage);
     iframeRef.current?.contentWindow?.postMessage({ __maicErrorReplayRequest: true }, '*');
     return () => window.removeEventListener('message', onMessage);
-  }, [sceneId, entry.srcDoc, entry.src, t]);
+  }, [entry.owner, sceneId, entry.srcDoc, entry.src, t, visible]);
 
   useEffect(() => {
     useSceneRuntimeErrors.getState().clearScene(sceneId);
