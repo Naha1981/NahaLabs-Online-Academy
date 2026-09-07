@@ -1,6 +1,7 @@
 import type { QuestionResult } from '@/lib/quiz/grading';
 import type { QuizAnswers } from '@/lib/quiz/persistence';
 import type { QuizAttemptState, QuizAttemptWriter, QuizDraftInput } from '@/lib/quiz/runtime';
+import { readCapsContext, recordCapsLocalEvent } from '@/lib/curriculum/caps-storage';
 
 export type QuizRuntimeGate =
   | { status: 'loading' }
@@ -70,6 +71,14 @@ export async function persistQuizReview(
   writer: Pick<QuizAttemptWriter, 'recordPhase'>,
 ): Promise<void> {
   await writer.recordPhase({ ...input, phase: 'reviewed' });
+
+  // The CAPS pilot keeps learner progress local and anonymous. Only record a
+  // completion when a CAPS classroom context is active; normal OpenMAIC usage
+  // is untouched.
+  const capsContext = readCapsContext();
+  if (capsContext) {
+    recordCapsLocalEvent('caps_quiz_completed', capsContext);
+  }
 }
 
 export interface QuizViewHydratedState {
