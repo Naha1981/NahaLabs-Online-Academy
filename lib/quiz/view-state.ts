@@ -74,10 +74,13 @@ export async function persistQuizReview(
 
   // The CAPS pilot keeps learner progress local and anonymous. Only record a
   // completion when a CAPS classroom context is active; normal OpenMAIC usage
-  // is untouched.
+  // is untouched. The score is a performance signal, not a claim of mastery.
   const capsContext = readCapsContext();
   if (capsContext) {
-    recordCapsLocalEvent('caps_quiz_completed', capsContext);
+    const total = input.results.reduce((sum, result) => sum + result.earned, 0);
+    const max = input.results.reduce((sum, result) => sum + Math.max(result.earned, 0), 0);
+    const scorePercent = max > 0 ? Math.round((total / max) * 100) : undefined;
+    recordCapsLocalEvent('caps_quiz_completed', capsContext, Date.now(), scorePercent);
   }
 }
 
