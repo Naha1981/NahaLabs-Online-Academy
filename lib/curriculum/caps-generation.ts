@@ -32,6 +32,13 @@ const GOAL_INSTRUCTIONS: Record<CapsLearningGoal, string> = {
   simulate: 'Prefer an interactive visualisation or simulation where it genuinely improves understanding.',
 };
 
+const INTERACTIVE_COMPLETION_CONTRACT = [
+  'When generating an interactive learning activity, include a clear learner-completable action (for example: manipulate a control, complete a short task, or reach a target state).',
+  "When that action is genuinely completed, emit window.parent.postMessage({ __maicInteractive: true, kind: 'activity-completed' }, '*').",
+  'Do not emit the completion message on page load, iframe mount, or merely because a control is visible.',
+  'Emit the completion message at most once for the activity unless the learner explicitly resets and completes the activity again.',
+];
+
 export function buildCapsGenerationBrief(
   context: CapsLearningContext,
   teacherSettings: CapsTeacherSettings = DEFAULT_CAPS_TEACHER_SETTINGS,
@@ -55,6 +62,7 @@ export function buildCapsGenerationBrief(
       ...buildTeacherGenerationInstructions(teacherSettings),
       'Teach step-by-step and check understanding frequently.',
       GOAL_INSTRUCTIONS[context.goal],
+      ...INTERACTIVE_COMPLETION_CONTRACT,
       'End with a short formative activity and explain what the learner should review next.',
     ],
   };
