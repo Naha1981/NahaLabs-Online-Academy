@@ -10,7 +10,10 @@ export interface CapsProgressEvent {
   type: CapsProgressEventType;
   at: number;
   context: CapsLearningContext;
+  quizScorePercent?: number;
 }
+
+export type CapsPerformanceBand = 'not-assessed' | 'needs-review' | 'developing' | 'strong';
 
 export interface CapsTopicProgress {
   topicId: string;
@@ -18,6 +21,16 @@ export interface CapsTopicProgress {
   lastActivityAt?: number;
   activitiesCompleted: number;
   quizzesCompleted: number;
+  bestQuizScorePercent?: number;
+  latestQuizScorePercent?: number;
+}
+
+export function getCapsPerformanceBand(progress: CapsTopicProgress): CapsPerformanceBand {
+  const score = progress.latestQuizScorePercent ?? progress.bestQuizScorePercent;
+  if (score === undefined) return 'not-assessed';
+  if (score < 50) return 'needs-review';
+  if (score < 75) return 'developing';
+  return 'strong';
 }
 
 export function recordCapsProgressEvent(
@@ -38,6 +51,10 @@ export function recordCapsProgressEvent(
   if (event.type === 'caps_quiz_completed') {
     next.quizzesCompleted += 1;
     next.lastActivityAt = event.at;
+    next.latestQuizScorePercent = event.quizScorePercent;
+    if (event.quizScorePercent !== undefined) {
+      next.bestQuizScorePercent = Math.max(next.bestQuizScorePercent ?? 0, event.quizScorePercent);
+    }
   }
 
   return next;
