@@ -176,10 +176,10 @@ function PooledIframe({ sceneId, entry, visible }: PooledIframeProps) {
     getSendMessage(sceneId)?.('element-picker:sync', { selectors });
   }, [armed, entry.srcDoc, getSendMessage, sceneId, selectors]);
 
-  // Capture runtime errors and explicit interactive activity completion messages
-  // from THIS iframe. The completion contract is intentionally opt-in: a widget
-  // must post `activity-completed` after a genuine learner action. Loading,
-  // mounting, visibility, or merely interacting with the iframe does not count.
+  // Capture runtime errors and explicit interactive activity completion/reset
+  // messages from THIS iframe. Completion is opt-in: a widget must post
+  // `activity-completed` after a genuine learner action. Loading, mounting,
+  // visibility, or merely interacting with the iframe does not count.
   useEffect(() => {
     completionDocumentRef.current = null;
     const documentKey = entry.srcDoc ?? entry.src ?? '';
@@ -196,14 +196,18 @@ function PooledIframe({ sceneId, entry, visible }: PooledIframeProps) {
         useSceneRuntimeErrors.getState().addError(sceneId, `[${kind}] ${msg}`);
         return;
       }
-      if (d.kind === 'activity-completed') {
-        // Only the active, owned iframe can produce learner-completion credit.
-        // Pooled/hidden scenes remain mounted for fast navigation but must not
-        // advance CAPS progress from background script messages.
+      if (d.kind === 'activity-completed' || d.kind === 'activity-reset') {
+        // Only the active, owned iframe can affect learner progress. Pooled /
+        // hidden scenes remain mounted for fast navigation but are never allowed
+        // to advance or reset CAPS progress from background script messages.
         if (!visible || entry.owner === null || sceneId !== useInteractiveIframePool.getState().activeSceneId) return;
-        if (completionDocumentRef.current === documentKey) return;
         const capsContext = readCapsContext();
         if (!capsContext) return;
+        if (d.kind === 'activity-reset') {
+          completionDocumentRef.current = null;
+          return;
+        }
+        if (completionDocumentRef.current === documentKey) return;
         completionDocumentRef.current = documentKey;
         recordCapsLocalEvent('caps_activity_completed', capsContext, Date.now());
         return;
