@@ -2,15 +2,14 @@ name: CI
 
 on:
   push:
-    # Integration branches are listed here as well as below: a pull_request run
-    # only ever proves one part merged into the branch, so without a push
-    # trigger the accumulated state of the branch that eventually reaches main
-    # is never built on its own.
-    branches: [main, integration/kv-asset-server-backend, integration/agent-workbench]
+    # Integration branches are listed here as well as below: a push run proves
+    # the accumulated state of an active branch, not only an individual PR.
+    branches: [main, feat/caps-soweto-pilot, integration/kv-asset-server-backend, integration/agent-workbench]
   pull_request:
     branches:
       [
         main,
+        feat/caps-soweto-pilot,
         feat/maic-editor-v0,
         feat/maic-editor-v1,
         runtime-server-backend,
@@ -35,9 +34,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Cheap bash-only check so a broken helper fails before pnpm install.
-      # Quiet annotations: the expected-failure case would otherwise paint
-      # the check with a fake ::error::.
       - name: Parallel runner self-test
         env:
           CI_PARALLEL_ANNOTATE: '0'
@@ -62,10 +58,6 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
-      # A branch creation or a force push reports an unusable `before`. Fail
-      # rather than substituting HEAD^: a force push can replace many commits at
-      # once, so the previous commit is not the range that needs checking, and
-      # publishing requires this run to be green.
       - name: Package version bumps (main push)
         if: github.event_name == 'push'
         run: |
@@ -80,11 +72,6 @@ jobs:
         env:
           BEFORE_SHA: ${{ github.event.before }}
 
-      # The tarball smoke test proves this about the bytes that would actually
-      # be published, but it installs five package tarballs, so it runs only on
-      # the release path. This is the cheap source-level form, here so that a
-      # pull request restoring `workspace:*` fails at review time rather than at
-      # release time, after a version number has already been spent.
       - name: Internal dependency ranges
         run: node scripts/check-internal-dependency-ranges.mjs
 
@@ -93,17 +80,6 @@ jobs:
       - name: Node engine contract
         run: pnpm check:node-engine
 
-      # `postinstall` builds all five @openmaic packages, and some of them
-      # generate tracked, publishable files (renderer's fonts.css and its KaTeX
-      # font snapshot). The publish workflow refuses to release when the build
-      # rewrites one; catching it here means a stale generated file is a pull
-      # request failure instead of a release failure.
-      #
-      # Against GITHUB_SHA, not the index or HEAD: a bare `git diff` misses
-      # staged changes, while install code can create a commit and move HEAD.
-      # This check exists precisely because code ran before it, so its reference
-      # point must be something that code cannot move. Disabling replacement
-      # objects also prevents a local replace ref from redirecting the commit.
       - name: Verify the install did not rewrite tracked package files
         run: |
           set -euo pipefail
@@ -120,8 +96,6 @@ jobs:
           fi
           echo "Tracked package files match the commit under test."
 
-      # These four do not share state. Sequential they were ~2 minutes; the
-      # slowest (ESLint) is the new bound.
       - name: Prettier, ESLint, TypeScript, i18n
         run: |
           scripts/ci-run-parallel.sh \
@@ -130,9 +104,6 @@ jobs:
             'tsc' 'npx tsc --noEmit' \
             'i18n' 'pnpm check:i18n-keys'
 
-      # Keep these sequential. Running root vitest alongside the storage
-      # package on a 4-core runner made 5s-timeout tests flake (CPU
-      # contention, not a product regression).
       - name: Unit Tests
         run: pnpm test
 
@@ -177,9 +148,6 @@ jobs:
           printf '%s\n' "$output"
           node -e 'const value = JSON.parse(process.argv[1]); if (!Array.isArray(value.outlines) || value.outlines.length === 0 || !value.scene || value.sceneValidation?.valid !== true) process.exit(1)' "$output"
 
-      # Covers the package's own test tree, which the root tsc reaches only by an
-      # incidental glob. The device-scope guard is written as `@ts-expect-error`
-      # probes in those tests, and a probe nothing type-checks proves nothing.
       - name: TypeScript (storage, incl. tests)
         run: pnpm --filter @openmaic/storage run typecheck
 
@@ -190,35 +158,24 @@ jobs:
     name: Render Service (typecheck + tests)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # The producer dep bundles puppeteer; skip its Chromium download — the unit
-    # tests exercise the service's boundaries (unzip, admission, body caps) and
-    # never launch a browser.
     env:
       PUPPETEER_SKIP_DOWNLOAD: "true"
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          # render-service is its own npm package (own lockfile, Node-only deps),
-          # excluded from the root eslint/tsc/pnpm workspace — so it gets its own
-          # install + quality gate here rather than riding on the `check` job.
           cache: npm
           cache-dependency-path: render-service/package-lock.json
-
       - name: Install
         working-directory: render-service
         run: npm ci
-
       - name: TypeScript
         working-directory: render-service
         run: npm run typecheck
-
       - name: Unit Tests
         working-directory: render-service
         run: npm test
-
       - name: Build container image
         run: docker build --tag openmaic-render-service:ci render-service
 
@@ -228,30 +185,18 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-
       - uses: pnpm/action-setup@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
-
-      # Browser tarballs live under ~/.cache/ms-playwright. A cold download of
-      # Chromium from the Playwright CDN has sat for 20+ minutes on this runner
-      # fleet; a lockfile-keyed cache turns that into a restore.
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-
-      # Browser tarball only. `install-deps` talks to Ubuntu apt; on this
-      # runner fleet that mirror has sat through the whole 15-minute job
-      # budget. ubuntu-latest already ships the libraries Chromium needs.
-      # Bound the Microsoft CDN download so a stall retries instead of hanging.
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
@@ -264,28 +209,18 @@ jobs:
           done
           echo "::error::Playwright Chromium download failed after 3 attempts."
           exit 1
-
-      # Measures the emitted cover cards in Chromium. Lives with the unit tests
-      # (it needs the compiler), but only this job has a browser, so it runs
-      # here with the flag that turns a missing one into a failure.
       - name: Cover-card layout guardrail
         run: pnpm exec vitest run tests/video-export/cover-card-layout.browser.test.ts
         env:
           COVER_LAYOUT_BROWSER: '1'
-
       - name: Interactive static HTML Chromium smoke
         run: pnpm exec vitest run tests/video-export/interactive-static-html.browser.test.ts
         env:
           INTERACTIVE_STATIC_BROWSER: '1'
-
-      # runner.* is only valid in step contexts (not job-level env).
       - name: Materialize Hyperframes lint samples
         run: pnpm exec vitest run tests/video-export/e2e-materialize.test.ts
         env:
           HF_E2E_DIR: ${{ runner.temp }}/openmaic-hyperframes-samples
-
-      # Hyperframes 0.7.60 reports warning-only lint with exit status zero, so
-      # require its plain clean summary as well as a successful process.
       - name: Lint Hyperframes samples
         shell: bash
         env:
@@ -309,10 +244,6 @@ jobs:
               exit 1
             fi
           done
-
-      # Incremental compilation artifacts only. Keyed on the lockfile plus
-      # next.config.ts so a dependency or webpack-rule change misses; source
-      # edits still reuse the restore-key prefix.
       - name: Cache Next.js build
         uses: actions/cache@v6
         with:
@@ -320,18 +251,12 @@ jobs:
           key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('next.config.ts') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
-
-      # Dedicated so a cold `next build` is not charged against Playwright's
-      # webServer readiness budget (120s). NEXT_PUBLIC_MAIC_EDITOR_ENABLED is a
-      # build-time flag and must be set here, not only on `pnpm start`.
       - name: Build
         run: pnpm build
         env:
           NEXT_PUBLIC_MAIC_EDITOR_ENABLED: 'true'
-
       - name: Run e2e tests
         run: pnpm exec playwright test
-
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
