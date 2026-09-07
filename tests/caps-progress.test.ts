@@ -6,7 +6,13 @@ import {
   recordCapsProgressEvent,
 } from '@/lib/curriculum/caps-progress';
 
-const context = { grade: 9 as const, subject: 'mathematics' as const, topicId: 'math-algebra', goal: 'learn' as const, version: 1 as const };
+const context = {
+  grade: 9 as const,
+  subject: 'mathematics' as const,
+  topicId: 'math-algebra',
+  goal: 'learn' as const,
+  version: 1 as const,
+};
 
 function progressWithScore(score: number) {
   return recordCapsProgressEvent(createEmptyCapsTopicProgress(context.topicId), {
@@ -44,5 +50,21 @@ describe('CAPS progress', () => {
     expect(second.bestQuizScorePercent).toBe(80);
     expect(second.latestQuizScorePercent).toBe(55);
     expect(getCapsPerformanceBand(second)).toBe('developing');
+  });
+
+  it('records activity completion without inventing a quiz score', () => {
+    const initial = createEmptyCapsTopicProgress(context.topicId);
+    const next = recordCapsProgressEvent(initial, {
+      type: 'caps_activity_completed',
+      at: 10,
+      context,
+    });
+
+    expect(next.activitiesCompleted).toBe(1);
+    expect(next.quizzesCompleted).toBe(0);
+    expect(next.latestQuizScorePercent).toBeUndefined();
+    expect(next.bestQuizScorePercent).toBeUndefined();
+    expect(next.lastActivityAt).toBe(10);
+    expect(getCapsPerformanceBand(next)).toBe('not-assessed');
   });
 });
