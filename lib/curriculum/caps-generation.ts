@@ -1,4 +1,9 @@
 import { getCapsPilotTopics, type CapsSubject } from './caps';
+import {
+  buildTeacherGenerationInstructions,
+  DEFAULT_CAPS_TEACHER_SETTINGS,
+  type CapsTeacherSettings,
+} from './teacher-config';
 
 export type CapsLearningGoal =
   | 'learn'
@@ -27,7 +32,10 @@ const GOAL_INSTRUCTIONS: Record<CapsLearningGoal, string> = {
   simulate: 'Prefer an interactive visualisation or simulation where it genuinely improves understanding.',
 };
 
-export function buildCapsGenerationBrief(context: CapsLearningContext): CapsGenerationBrief {
+export function buildCapsGenerationBrief(
+  context: CapsLearningContext,
+  teacherSettings: CapsTeacherSettings = DEFAULT_CAPS_TEACHER_SETTINGS,
+): CapsGenerationBrief {
   const topic = getCapsPilotTopics(context.grade, context.subject).find(
     (candidate) => candidate.id === context.topicId,
   );
@@ -44,14 +52,17 @@ export function buildCapsGenerationBrief(context: CapsLearningContext): CapsGene
     instructions: [
       `Teach Grade ${context.grade} ${subjectLabel}: ${topic.label}.`,
       'Treat the CAPS catalog as a pilot curriculum layer, not an authoritative replacement for official curriculum documents.',
+      ...buildTeacherGenerationInstructions(teacherSettings),
       'Teach step-by-step and check understanding frequently.',
-      'Use clear language, worked examples, and a concrete South African context when helpful without stereotyping learners.',
       GOAL_INSTRUCTIONS[context.goal],
       'End with a short formative activity and explain what the learner should review next.',
     ],
   };
 }
 
-export function buildCapsRequirement(context: CapsLearningContext): string {
-  return buildCapsGenerationBrief(context).instructions.join('\n');
+export function buildCapsRequirement(
+  context: CapsLearningContext,
+  teacherSettings?: CapsTeacherSettings,
+): string {
+  return buildCapsGenerationBrief(context, teacherSettings).instructions.join('\n');
 }
