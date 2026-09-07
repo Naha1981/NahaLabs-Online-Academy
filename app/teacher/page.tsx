@@ -3,47 +3,41 @@
 import { useEffect, useState } from 'react';
 import { BookOpenCheck, ShieldCheck, Users, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-const SETTINGS_KEY = 'nahaCapsTeacherSettings';
-
-type TeacherSettings = {
-  pilotMode: boolean;
-  requireInteractive: boolean;
-  showLocalExamples: boolean;
-  dataSaver: boolean;
-};
-
-const DEFAULTS: TeacherSettings = {
-  pilotMode: true,
-  requireInteractive: true,
-  showLocalExamples: true,
-  dataSaver: true,
-};
+import {
+  CAPS_TEACHER_SETTINGS_KEY,
+  DEFAULT_CAPS_TEACHER_SETTINGS,
+  type CapsTeacherSettings,
+  normalizeCapsTeacherSettings,
+} from '@/lib/curriculum/teacher-config';
 
 export default function TeacherPage() {
-  const [settings, setSettings] = useState<TeacherSettings>(DEFAULTS);
+  const [settings, setSettings] = useState<CapsTeacherSettings>(DEFAULT_CAPS_TEACHER_SETTINGS);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      if (raw) setSettings({ ...DEFAULTS, ...(JSON.parse(raw) as Partial<TeacherSettings>) });
+      const raw = localStorage.getItem(CAPS_TEACHER_SETTINGS_KEY);
+      if (raw) setSettings(normalizeCapsTeacherSettings(JSON.parse(raw)));
     } catch {
-      // Defaults are safe if storage is unavailable.
+      // Defaults are safe if storage is unavailable or malformed.
     }
   }, []);
 
-  const update = (key: keyof TeacherSettings) => {
+  const update = (key: keyof CapsTeacherSettings) => {
     setSettings((current) => ({ ...current, [key]: !current[key] }));
     setSaved(false);
   };
 
   const save = () => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* best effort */ }
+    try {
+      localStorage.setItem(CAPS_TEACHER_SETTINGS_KEY, JSON.stringify(settings));
+    } catch {
+      // Best effort: learning should not be blocked by local storage failures.
+    }
     setSaved(true);
   };
 
-  const controls: Array<{ key: keyof TeacherSettings; title: string; description: string }> = [
+  const controls: Array<{ key: keyof CapsTeacherSettings; title: string; description: string }> = [
     { key: 'pilotMode', title: 'CAPS pilot mode', description: 'Keep classroom generation inside the reviewed Grade 8–12 Mathematics and Physical Sciences pilot catalog.' },
     { key: 'requireInteractive', title: 'Interactive classroom by default', description: 'Start lessons with activities, checks for understanding and interactive classroom elements.' },
     { key: 'showLocalExamples', title: 'Use South African examples', description: 'Prefer relevant local contexts when they improve understanding without making assumptions about a learner.' },
