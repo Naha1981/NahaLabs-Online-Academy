@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button';
 import { CAPS_SOWETO_PILOT } from '@/lib/curriculum/caps';
 import { buildCapsGenerationBrief } from '@/lib/curriculum/caps-generation';
 import { readCapsContext, readCapsProgress, type CapsStoredProgress } from '@/lib/curriculum/caps-storage';
+import { getCapsReviewRecommendation } from '@/lib/curriculum/caps-progress';
+
+function buildReviewHref(grade: number, subject: string, topicId: string, action: string) {
+  const goal = action === 'review' ? 'learn' : action === 'challenge' ? 'practice' : action === 'practice' ? 'practice' : 'assess';
+  const params = new URLSearchParams({ grade: String(grade), subject, topic: topicId, goal });
+  return `/caps?${params.toString()}`;
+}
 
 export default function CapsProgressPage() {
   const [progress, setProgress] = useState<CapsStoredProgress>({ version: 1, topics: {} });
@@ -52,14 +59,34 @@ export default function CapsProgressPage() {
         </section>
 
         <section className="mt-8 rounded-2xl border bg-card p-5 sm:p-6">
-          <h2 className="text-lg font-semibold">Pilot topics</h2>
+          <div>
+            <h2 className="text-lg font-semibold">Pilot topics</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Performance bands are based on recent question accuracy, not a claim of mastery.</p>
+          </div>
           <div className="mt-4 divide-y">
-            {rows.map(({ topic, progress: item }) => (
-              <div key={topic.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div><p className="font-medium">{topic.label}</p><p className="text-sm text-muted-foreground">{topic.subjects.includes('mathematics') ? 'Mathematics' : 'Physical Sciences'} · Grades {topic.grades.join(', ')}</p></div>
-                <div className="text-sm text-muted-foreground">{item ? `${item.activitiesCompleted} activities · ${item.quizzesCompleted} quizzes` : 'Not started'}</div>
-              </div>
-            ))}
+            {rows.map(({ topic, progress: item }) => {
+              const recommendation = item ? getCapsReviewRecommendation(item) : null;
+              const href = item && context ? buildReviewHref(context.grade, context.subject, topic.id, recommendation?.action ?? 'assess') : null;
+              return (
+                <div key={topic.id} className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-medium">{topic.label}</p>
+                    <p className="text-sm text-muted-foreground">{topic.subjects.includes('mathematics') ? 'Mathematics' : 'Physical Sciences'} · Grades {topic.grades.join(', ')}</p>
+                    {item && recommendation ? (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">{recommendation.band.replace('-', ' ')}</span>
+                        {item.latestQuizScorePercent !== undefined ? ` · ${item.latestQuizScorePercent}% latest accuracy` : ''}
+                        {' · '}{recommendation.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <div className="text-right text-sm text-muted-foreground">{item ? `${item.activitiesCompleted} activities · ${item.quizzesCompleted} quizzes` : 'Not started'}</div>
+                    {item && href ? <Button asChild variant="outline" size="sm"><a href={href}>{recommendation?.label}<ArrowRight className="ml-2 size-4" /></a></Button> : null}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       </div>
