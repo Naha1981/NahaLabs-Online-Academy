@@ -6,6 +6,12 @@ import { ArrowRight, BookOpen, GraduationCap, Sparkles } from 'lucide-react';
 import { CAPS_SOWETO_PILOT, type CapsSubject } from '@/lib/curriculum/caps';
 import { buildCapsRequirement, type CapsLearningGoal } from '@/lib/curriculum/caps-generation';
 import { recordCapsLocalEvent } from '@/lib/curriculum/caps-storage';
+import {
+  CAPS_TEACHER_SETTINGS_KEY,
+  DEFAULT_CAPS_TEACHER_SETTINGS,
+  normalizeCapsTeacherSettings,
+  type CapsTeacherSettings,
+} from '@/lib/curriculum/teacher-config';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +36,7 @@ export default function CapsOnboardingPage() {
   const [subject, setSubject] = useState<CapsSubject>('mathematics');
   const [topicId, setTopicId] = useState('');
   const [goal, setGoal] = useState<CapsLearningGoal>('learn');
+  const [teacherSettings, setTeacherSettings] = useState<CapsTeacherSettings>(DEFAULT_CAPS_TEACHER_SETTINGS);
 
   const topics = useMemo(
     () => CAPS_SOWETO_PILOT.filter((topic) => topic.subjects.includes(subject) && topic.grades.includes(grade)),
@@ -40,16 +47,25 @@ export default function CapsOnboardingPage() {
     setTopicId(topics[0]?.id ?? '');
   }, [topics]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CAPS_TEACHER_SETTINGS_KEY);
+      if (raw) setTeacherSettings(normalizeCapsTeacherSettings(JSON.parse(raw)));
+    } catch {
+      // Defaults are safe if teacher settings are unavailable.
+    }
+  }, []);
+
   const selectedTopic = topics.find((topic) => topic.id === topicId);
 
   const startClass = () => {
     if (!selectedTopic) return;
     const context = { grade, subject, topicId: selectedTopic.id, goal, version: 1 as const };
-    const requirement = buildCapsRequirement(context);
+    const requirement = buildCapsRequirement(context, teacherSettings);
 
     try {
       localStorage.setItem('requirementDraft', requirement);
-      localStorage.setItem('interactiveModeEnabled', 'true');
+      localStorage.setItem('interactiveModeEnabled', String(teacherSettings.requireInteractive));
       localStorage.setItem('nahaCapsLearnerContext', JSON.stringify(context));
       recordCapsLocalEvent('caps_class_started', context);
     } catch {
@@ -83,7 +99,7 @@ export default function CapsOnboardingPage() {
               <h2 className="text-xl font-semibold">Grade {grade} {subject === 'mathematics' ? 'Mathematics' : 'Physical Sciences'}</h2>
               <p className="mt-2 text-sm text-muted-foreground">{selectedTopic?.label ?? 'Choose a topic'}</p>
               <div className="mt-5 space-y-2 text-sm text-muted-foreground"><p>✓ Step-by-step teaching</p><p>✓ Interactive learning</p><p>✓ Practice and formative checks</p><p>✓ Classmate discussion</p></div>
-              <Button className="mt-7 w-full" size="lg" onClick={startClass} disabled={!selectedTopic}>Start interactive class<ArrowRight className="ml-2 size-4" /></Button>
+              <Button className="mt-7 w-full" size="lg" onClick={startClass} disabled={!selectedTopic}>Start class<ArrowRight className="ml-2 size-4" /></Button>
               <Button asChild variant="ghost" className="mt-2 w-full"><a href="/progress">View my progress</a></Button>
             </aside>
           </div>
